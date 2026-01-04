@@ -32,32 +32,23 @@ class VoskModule(reactContext: ReactApplicationContext) :
   }
 
   override fun onResult(hypothesis: String) {
-    // Get text data from string object
-    val text = parseHypothesis(hypothesis)
-
-    // Send event if data found
-    if (!text.isNullOrEmpty()) {
-      emitOnResult(text)
+    // Send raw JSON with word-level confidence data
+    if (hypothesis.isNotEmpty()) {
+      emitOnResult(hypothesis)
     }
   }
 
   override fun onFinalResult(hypothesis: String) {
-    // Get text data from string object
-    val text = parseHypothesis(hypothesis)
-
-    // Send event if data found
-    if (!text.isNullOrEmpty()) {
-      emitOnFinalResult(text)
+    // Send raw JSON with word-level confidence data
+    if (hypothesis.isNotEmpty()) {
+      emitOnFinalResult(hypothesis)
     }
   }
 
   override fun onPartialResult(hypothesis: String) {
-    // Get text data from string object
-    val text = parseHypothesis(hypothesis, "partial")
-
-    // Send event if data found
-    if (!text.isNullOrEmpty()) {
-      emitOnPartialResult(text)
+    // Send raw JSON with partial result
+    if (hypothesis.isNotEmpty()) {
+      emitOnPartialResult(hypothesis)
     }
   }
 
@@ -146,6 +137,9 @@ class VoskModule(reactContext: ReactApplicationContext) :
               } else {
                 Recognizer(model, sampleRate)
               }
+      // Enable word-level results with confidence scores
+      recognizer?.setWords(true)
+
       speechService = SpeechService(recognizer, sampleRate)
       val started =
               if (options != null && options.hasKey("timeout") && !options.isNull("timeout")) {

@@ -194,6 +194,10 @@ RCT_EXPORT_MODULE()
         } else {
           self->_recognizer = vosk_recognizer_new(self->_currentModel.model, (float)sampleRate);
         }
+        // Enable word-level results with confidence scores
+        if (self->_recognizer) {
+          vosk_recognizer_set_words(self->_recognizer, 1);
+        }
         CFAbsoluteTime tRec1 = CFAbsoluteTimeGetCurrent();
         NSLog(@"[Vosk] Recognizer init: %.2f ms", (tRec1 - tRec0) * 1000.0);
         if (!self->_recognizer) {
@@ -281,7 +285,28 @@ RCT_EXPORT_MODULE()
         } else { return; }
         const char *cstr = NULL; BOOL isFinal = NO; if (accepted) { cstr = vosk_recognizer_result(recognizer); isFinal = YES; } else { cstr = vosk_recognizer_partial_result(recognizer); }
         NSString *json = cstr ? [NSString stringWithUTF8String:cstr] : nil;
-        dispatch_async(dispatch_get_main_queue(), ^{ if (!json) return; NSData *data = [json dataUsingEncoding:NSUTF8StringEncoding]; NSDictionary *parsed = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil; if (![parsed isKindOfClass:[NSDictionary class]]) { if (isFinal) { [self emitOnResult:json]; } else { [self emitOnPartialResult:json]; } return; } NSString *text = parsed[@"text"]; NSString *partial = parsed[@"partial"]; if (isFinal) { if (text.length > 0) { [self emitOnResult:text]; } self->_lastPartial = nil; } else { if (partial.length > 0 && (!self->_lastPartial || ![self->_lastPartial isEqualToString:partial])) { [self emitOnPartialResult:partial]; } self->_lastPartial = partial ?: self->_lastPartial; } });
+        dispatch_async(dispatch_get_main_queue(), ^{
+          if (!json) return;
+          // Send raw JSON with word-level confidence data
+          if (isFinal) {
+            // Check if json has content
+            NSData *data = [json dataUsingEncoding:NSUTF8StringEncoding];
+            NSDictionary *parsed = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+            NSString *text = parsed[@"text"];
+            if (text.length > 0) {
+              [self emitOnResult:json];  // Send full JSON
+            }
+            self->_lastPartial = nil;
+          } else {
+            NSData *data = [json dataUsingEncoding:NSUTF8StringEncoding];
+            NSDictionary *parsed = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+            NSString *partial = parsed[@"partial"];
+            if (partial.length > 0 && (!self->_lastPartial || ![self->_lastPartial isEqualToString:partial])) {
+              [self emitOnPartialResult:json];  // Send full JSON
+            }
+            self->_lastPartial = partial ?: self->_lastPartial;
+          }
+        });
       });
     }];
     _tapInstalled = YES; _pendingTap = NO; NSLog(@"[Vosk] Tap installed successfully after %d retries.", _tapRetryCount);
